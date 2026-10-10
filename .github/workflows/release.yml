@@ -28,7 +28,7 @@ jobs:
 
       # HACS downloads the file named in hacs.json `filename` from the release assets.
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: dist/renault-r5-card.js
           generate_release_notes: true
