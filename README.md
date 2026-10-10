@@ -6,6 +6,10 @@ A Home Assistant Lovelace card for the electric Renault 5: a picture of the car
 in your body colour, battery level, range, charge state, climate, mileage and
 quick actions (start charge, air conditioning, flash lights, horn).
 
+<p align="center">
+  <img src="docs/card.png" alt="The card showing a midnight blue Renault 5" width="360">
+</p>
+
 It reads the entities created by the core
 [Renault integration](https://www.home-assistant.io/integrations/renault/) —
 set that up first.
@@ -34,7 +38,11 @@ type: module
 
 ## Configuration
 
-The card ships a visual editor. YAML equivalent:
+The card ships a visual editor:
+
+![Visual editor of the card](docs/editor.png)
+
+YAML equivalent:
 
 ```yaml
 type: custom:renault-r5-card
@@ -115,4 +123,11 @@ helpers (`dev/packages/renault_r5.yaml`).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) for the code.
+
+The car pictures in `src/assets/cars/` come from Renault's online configurator.
+They remain the property of Renault and are **not** covered by the MIT license.
+"Renault" and "Renault 5" are trademarks of Renault. This project is an
+independent, community-made card: it is not affiliated with, endorsed by or
+sponsored by Renault. The pictures will be removed on request from the rights
+holder.
