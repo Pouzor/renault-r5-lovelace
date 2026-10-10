@@ -51,6 +51,7 @@ range_entity: sensor.r5_battery_autonomy
 mileage_entity: sensor.r5_mileage
 charging_entity: binary_sensor.r5_charging
 plugged_entity: binary_sensor.r5_plugged_in
+charging_remaining_time_entity: sensor.r5_charging_remaining_time
 hvac_entity: binary_sensor.r5_hvac
 start_charge_entity: button.r5_start_charge
 start_ac_entity: button.r5_start_air_conditioner
@@ -77,6 +78,7 @@ listed in `show_info` / `show_buttons` **and** its entity is set.
 | `mileage_entity` | Mileage sensor — `mileage` |
 | `charging_entity` | Binary sensor, `on` while charging — `status` |
 | `plugged_entity` | Binary sensor, `on` while plugged in — `status` |
+| `charging_remaining_time_entity` | Remaining charge time sensor, shown next to "Charging" while the car charges — `status` |
 | `hvac_entity` | Binary sensor, `on` while the air conditioning runs — `hvac` |
 | `start_charge_entity` | Button entity pressed by "Charge" |
 | `start_ac_entity` | Button entity pressed by "Climate" |

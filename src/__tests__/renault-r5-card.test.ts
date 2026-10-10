@@ -14,6 +14,7 @@ const CONFIG: RenaultR5CardConfig = {
   mileage_entity: 'sensor.r5_mileage',
   charging_entity: 'binary_sensor.r5_charging',
   plugged_entity: 'binary_sensor.r5_plugged_in',
+  charging_remaining_time_entity: 'sensor.r5_charging_remaining_time',
   hvac_entity: 'binary_sensor.r5_hvac',
   start_charge_entity: 'button.r5_start_charge',
   start_ac_entity: 'button.r5_start_air_conditioner',
@@ -96,6 +97,24 @@ describe('renault-r5-card', () => {
       makeHass({ 'binary_sensor.r5_charging': 'off', 'binary_sensor.r5_plugged_in': 'off' })
     )
     expect(unplugged.shadowRoot!.querySelector('.chip')?.textContent).toBe('Unplugged')
+  })
+
+  it('shows the remaining charge time next to the charging chip', async () => {
+    const TIME = 'sensor.r5_charging_remaining_time'
+    const remaining = async (states: Record<string, string>, unit?: string) => {
+      const hass = makeHass({ ...STATES, ...states })
+      if (unit) hass.states[TIME]!.attributes.unit_of_measurement = unit
+      const root = (await mount(hass)).shadowRoot!
+      return root.querySelector('.chips .chip.remaining')?.textContent
+    }
+
+    expect(await remaining({ [TIME]: '85' })).toBe('1 h 25 min')
+    expect(await remaining({ [TIME]: '45' }, 'min')).toBe('45 min')
+    expect(await remaining({ [TIME]: '2' }, 'h')).toBe('2 h')
+    expect(await remaining({})).toBeUndefined()
+    expect(await remaining({ [TIME]: 'unavailable' })).toBeUndefined()
+    expect(await remaining({ [TIME]: '0' })).toBeUndefined()
+    expect(await remaining({ [TIME]: '85', 'binary_sensor.r5_charging': 'off' })).toBeUndefined()
   })
 
   it('shows placeholders when entities are unavailable', async () => {
@@ -186,6 +205,7 @@ describe('getStubConfig', () => {
       ['sensor.hm494xm_batterie', null, 'battery'],
       ['sensor.hm494xm_autonomie_de_la_batterie', 'battery_autonomy', 'distance'],
       ['sensor.hm494xm_kilometrage', 'mileage', 'distance'],
+      ['sensor.hm494xm_temps_de_charge_restant', 'charging_remaining_time', 'duration'],
       ['number.hm494xm_niveau_de_charge_cible', 'charge_limit_target', 'battery'],
       ['binary_sensor.hm494xm_en_charge', null, 'battery_charging'],
       ['binary_sensor.hm494xm_prise', null, 'plug'],
@@ -222,6 +242,7 @@ describe('getStubConfig', () => {
       mileage_entity: 'sensor.hm494xm_kilometrage',
       charging_entity: 'binary_sensor.hm494xm_en_charge',
       plugged_entity: 'binary_sensor.hm494xm_prise',
+      charging_remaining_time_entity: 'sensor.hm494xm_temps_de_charge_restant',
       hvac_entity: 'binary_sensor.hm494xm_cvc',
       start_charge_entity: 'button.hm494xm_commencer_la_charge',
       start_ac_entity: 'button.hm494xm_demarrer_la_climatisation',

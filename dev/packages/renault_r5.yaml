@@ -31,6 +31,13 @@ input_number:
     step: 1
     initial: 12345
     unit_of_measurement: km
+  r5_charging_remaining_time:
+    name: R5 charging remaining time (fake)
+    min: 0
+    max: 600
+    step: 5
+    initial: 85
+    unit_of_measurement: min
 
 input_boolean:
   r5_charging:
@@ -57,6 +64,11 @@ template:
         device_class: distance
         unit_of_measurement: km
         state: "{{ states('input_number.r5_mileage') | int(0) }}"
+      - name: R5 Charging remaining time
+        unique_id: dev_r5_charging_remaining_time
+        device_class: duration
+        unit_of_measurement: min
+        state: "{{ states('input_number.r5_charging_remaining_time') | int(0) }}"
   - binary_sensor:
       - name: R5 Charging
         unique_id: dev_r5_charging

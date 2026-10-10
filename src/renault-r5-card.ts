@@ -9,6 +9,9 @@ import type { ButtonItem, HomeAssistant, InfoItem, RenaultR5CardConfig } from '.
 
 const UNAVAILABLE = new Set(['unavailable', 'unknown'])
 
+// The duration sensor can be displayed in any of these units.
+const MINUTES_PER_UNIT: Record<string, number> = { s: 1 / 60, min: 1, h: 60, d: 1440 }
+
 const BUTTONS: Record<ButtonItem, { option: keyof RenaultR5CardConfig; icon: string }> = {
   start_charge: { option: 'start_charge_entity', icon: 'mdi:ev-station' },
   start_ac: { option: 'start_ac_entity', icon: 'mdi:fan' },
@@ -43,6 +46,7 @@ export class RenaultR5Card extends LitElement {
             range_entity: 'sensor.r5_battery_autonomy',
             charging_entity: 'binary_sensor.r5_charging',
             plugged_entity: 'binary_sensor.r5_plugged_in',
+            charging_remaining_time_entity: 'sensor.r5_charging_remaining_time',
           }),
     }
   }
@@ -83,6 +87,19 @@ export class RenaultR5Card extends LitElement {
     return `${text} ${typeof unit === 'string' ? unit : fallbackUnit}`
   }
 
+  // Remaining charge time as "1 h 25 min"; undefined when unknown or over.
+  private _remaining(entityId?: string): string | undefined {
+    const state = this._state(entityId)
+    if (!entityId || state === undefined) return undefined
+    const unit = this.hass?.states[entityId]?.attributes.unit_of_measurement
+    const minutes = Math.round(Number(state) * (MINUTES_PER_UNIT[String(unit)] ?? 1))
+    if (!Number.isFinite(minutes) || minutes <= 0) return undefined
+    const hours = Math.floor(minutes / 60)
+    const rest = minutes % 60
+    if (!hours) return `${minutes} min`
+    return rest ? `${hours} h ${rest} min` : `${hours} h`
+  }
+
   private _shows(item: InfoItem): boolean {
     return (this._config?.show_info ?? INFO_ITEMS).includes(item)
   }
@@ -98,7 +115,15 @@ export class RenaultR5Card extends LitElement {
       return nothing
     }
     const key = charging ? 'charging' : plugged === 'on' ? 'plugged' : 'unplugged'
-    return html`<span class="chip ${key}">${localize(this.hass, `status.${key}`)}</span>`
+    const remaining = charging ? this._remaining(config.charging_remaining_time_entity) : undefined
+    return html`<div class="chips">
+      ${remaining
+        ? html`<span class="chip remaining" title=${localize(this.hass, 'status.remaining')}
+            ><ha-icon icon="mdi:timer-outline"></ha-icon>${remaining}</span
+          >`
+        : nothing}
+      <span class="chip ${key}">${localize(this.hass, `status.${key}`)}</span>
+    </div>`
   }
 
   private _renderTile(item: InfoItem, icon: string, value: string) {
@@ -215,6 +240,20 @@ export class RenaultR5Card extends LitElement {
       background: var(--secondary-background-color);
       color: var(--secondary-text-color);
       white-space: nowrap;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+    .chip.remaining {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .chip.remaining ha-icon {
+      --mdc-icon-size: 14px;
     }
     .chip.charging {
       background: var(--success-color, #43a047);
