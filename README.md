@@ -21,6 +21,17 @@ It reads the entities created by the core
 2. Add `https://github.com/Pouzor/renault-r5-lovelace`, type **Dashboard**
 3. Install **Renault R5 Card**, then reload the browser
 
+HACS registers the dashboard resource by itself. If your resources are managed
+in YAML (`lovelace: resource_mode: yaml`), it cannot: add the resource yourself
+and restart Home Assistant.
+
+```yaml
+lovelace:
+  resources:
+    - url: /hacsfiles/renault-r5-lovelace/renault-r5-card.js
+      type: module
+```
+
 ### Manual
 
 Download `renault-r5-card.js` from the
@@ -31,6 +42,9 @@ to `config/www/`, and add it under Settings → Dashboards → Resources:
 url: /local/renault-r5-card.js
 type: module
 ```
+
+This `/local/` URL only applies to a manual copy; a HACS install is served from
+`/hacsfiles/renault-r5-lovelace/`.
 
 ## Configuration
 
