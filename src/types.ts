@@ -29,9 +29,11 @@ export interface HomeAssistant {
 
 export const INFO_ITEMS = ['battery', 'range', 'status', 'hvac', 'mileage'] as const
 export const BUTTON_ITEMS = ['start_charge', 'start_ac', 'flash_lights', 'horn'] as const
+export const BUTTONS_POSITIONS = ['bottom', 'right'] as const
 
 export type InfoItem = (typeof INFO_ITEMS)[number]
 export type ButtonItem = (typeof BUTTON_ITEMS)[number]
+export type ButtonsPosition = (typeof BUTTONS_POSITIONS)[number]
 
 export interface RenaultR5CardConfig {
   type: string
@@ -40,6 +42,8 @@ export interface RenaultR5CardConfig {
   // Both default to every item; an item also needs its entity to be set.
   show_info?: InfoItem[]
   show_buttons?: ButtonItem[]
+  // `right` stacks the buttons in a column beside the car, for wide cards.
+  buttons_position?: ButtonsPosition
   battery_entity?: string
   range_entity?: string
   charging_entity?: string
