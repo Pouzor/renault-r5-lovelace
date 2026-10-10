@@ -1,0 +1,30 @@
+{
+  "name": "renault-r5-card",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Home Assistant Lovelace card for the electric Renault 5",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "tsc --noEmit && vite build",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.5",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "jsdom": "^30.1.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  }
+}

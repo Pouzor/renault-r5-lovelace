@@ -1,0 +1,34 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Sync package version with tag
+        run: npm version "${GITHUB_REF#refs/tags/v}" --no-git-tag-version --allow-same-version
+
+      - name: Build card bundle
+        run: |
+          npm ci
+          npm run build
+
+      # HACS downloads the file named in hacs.json `filename` from the release assets.
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/renault-r5-card.js
+          generate_release_notes: true

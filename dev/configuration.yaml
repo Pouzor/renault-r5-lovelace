@@ -1,0 +1,9 @@
+# Seed for dev-config/configuration.yaml — copied once by scripts/dev-ha.sh.
+default_config:
+
+homeassistant:
+  packages: !include_dir_named packages
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml

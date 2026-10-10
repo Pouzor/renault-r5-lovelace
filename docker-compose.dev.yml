@@ -1,0 +1,19 @@
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: renault-r5-ha-dev
+    restart: unless-stopped
+    # 8124 by default so this can run next to another HA dev container on 8123.
+    ports:
+      - "${HA_PORT:-8124}:8123"
+    environment:
+      TZ: Europe/Paris
+    volumes:
+      # HA persists its database, registry and HACS install under here.
+      # Survives container restarts so onboarding is not lost.
+      - ./dev-config:/config
+      # Live-mount the built card: served by HA at /local/renault-r5-card.js.
+      # `npm run dev` rebuilds on save → hard-refresh the browser to reload.
+      - ./dist:/config/www/renault-r5-card:ro
+      # Fake Renault entities + Lovelace resource registration.
+      - ./dev/packages:/config/packages:ro

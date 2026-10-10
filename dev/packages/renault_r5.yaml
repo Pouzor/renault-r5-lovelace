@@ -1,0 +1,71 @@
+# Dev-only package: registers the card and fakes the entities the core
+# `renault` integration creates for a vehicle named "R5", so the card can be
+# exercised without a My Renault account. Drive the values from the
+# input_number / input_boolean helpers.
+
+lovelace:
+  resource_mode: yaml
+  resources:
+    - url: /local/renault-r5-card/renault-r5-card.js
+      type: module
+
+input_number:
+  r5_battery:
+    name: R5 battery (fake)
+    min: 0
+    max: 100
+    step: 1
+    initial: 63
+    unit_of_measurement: "%"
+  r5_battery_autonomy:
+    name: R5 range (fake)
+    min: 0
+    max: 410
+    step: 1
+    initial: 248
+    unit_of_measurement: km
+
+input_boolean:
+  r5_charging:
+    name: R5 charging (fake)
+  r5_plugged_in:
+    name: R5 plugged in (fake)
+  r5_hvac:
+    name: R5 pre-conditioning (fake)
+
+template:
+  - sensor:
+      - name: R5 Battery
+        unique_id: dev_r5_battery
+        device_class: battery
+        unit_of_measurement: "%"
+        state: "{{ states('input_number.r5_battery') | int(0) }}"
+      - name: R5 Battery autonomy
+        unique_id: dev_r5_battery_autonomy
+        device_class: distance
+        unit_of_measurement: km
+        state: "{{ states('input_number.r5_battery_autonomy') | int(0) }}"
+  - binary_sensor:
+      - name: R5 Charging
+        unique_id: dev_r5_charging
+        device_class: battery_charging
+        state: "{{ is_state('input_boolean.r5_charging', 'on') }}"
+      - name: R5 Plugged in
+        unique_id: dev_r5_plugged_in
+        device_class: plug
+        state: "{{ is_state('input_boolean.r5_plugged_in', 'on') }}"
+  - button:
+      - name: R5 Start charge
+        unique_id: dev_r5_start_charge
+        press:
+          - action: input_boolean.turn_on
+            target:
+              entity_id:
+                - input_boolean.r5_plugged_in
+                - input_boolean.r5_charging
+      - name: R5 Start air conditioner
+        unique_id: dev_r5_start_air_conditioner
+        press:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.r5_hvac

@@ -1,0 +1,22 @@
+# Node
+node_modules/
+*.log
+npm-debug.log*
+coverage/
+
+# Build output (rebuilt and attached to each GitHub release)
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Local Claude
+.claude/
+CLAUDE.md
+_project_specs/
+
+# Local HA dev instance (docker-compose.dev.yml mount)
+dev-config/
