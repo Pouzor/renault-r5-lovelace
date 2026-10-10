@@ -14,6 +14,7 @@ const ENTITIES = [
   { name: 'mileage_entity', selector: entity('sensor') },
   { name: 'charging_entity', selector: entity('binary_sensor') },
   { name: 'plugged_entity', selector: entity('binary_sensor') },
+  { name: 'charging_remaining_time_entity', selector: entity('sensor') },
   { name: 'hvac_entity', selector: entity('binary_sensor') },
   { name: 'start_charge_entity', selector: entity('button') },
   { name: 'start_ac_entity', selector: entity('button') },

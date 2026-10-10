@@ -44,6 +44,7 @@ export interface RenaultR5CardConfig {
   range_entity?: string
   charging_entity?: string
   plugged_entity?: string
+  charging_remaining_time_entity?: string
   hvac_entity?: string
   mileage_entity?: string
   start_charge_entity?: string

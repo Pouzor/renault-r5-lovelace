@@ -7,6 +7,7 @@ type EntityOption = Extract<keyof RenaultR5CardConfig, `${string}_entity`>
 const BY_TRANSLATION_KEY: Record<string, EntityOption> = {
   battery_autonomy: 'range_entity',
   mileage: 'mileage_entity',
+  charging_remaining_time: 'charging_remaining_time_entity',
   hvac_status: 'hvac_entity',
   start_charge: 'start_charge_entity',
   start_air_conditioner: 'start_ac_entity',
