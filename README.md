@@ -11,11 +11,7 @@ quick actions (start charge, air conditioning, flash lights, horn).
 </p>
 
 It reads the entities created by the core
-[Renault integration](https://www.home-assistant.io/integrations/renault/) —
-set that up first.
-
-> Early bootstrap: the card is functional but minimal. Expect the config to
-> evolve before 1.0.
+[Renault integration](https://www.home-assistant.io/integrations/renault/), so set that up first.
 
 ## Installation
 
