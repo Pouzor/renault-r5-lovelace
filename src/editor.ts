@@ -1,27 +1,55 @@
 import { LitElement, html, nothing } from 'lit'
+import { CAR_COLORS, DEFAULT_COLOR } from './colors'
 import { EDITOR_TYPE } from './const'
+import { language, localize } from './localize'
+import type { StringKey } from './localize'
+import { BUTTON_ITEMS, INFO_ITEMS } from './types'
 import type { HomeAssistant, RenaultR5CardConfig } from './types'
 
 const entity = (domain: string) => ({ entity: { domain } })
 
-const SCHEMA = [
-  { name: 'name', selector: { text: {} } },
-  { name: 'battery_entity', required: true, selector: entity('sensor') },
+const ENTITIES = [
+  { name: 'battery_entity', selector: entity('sensor') },
   { name: 'range_entity', selector: entity('sensor') },
+  { name: 'mileage_entity', selector: entity('sensor') },
   { name: 'charging_entity', selector: entity('binary_sensor') },
   { name: 'plugged_entity', selector: entity('binary_sensor') },
+  { name: 'hvac_entity', selector: entity('binary_sensor') },
   { name: 'start_charge_entity', selector: entity('button') },
   { name: 'start_ac_entity', selector: entity('button') },
+  { name: 'flash_lights_entity', selector: entity('button') },
+  { name: 'horn_entity', selector: entity('button') },
 ]
 
-const LABELS: Record<string, string> = {
-  name: 'Name',
-  battery_entity: 'Battery level',
-  range_entity: 'Range',
-  charging_entity: 'Charging',
-  plugged_entity: 'Plugged in',
-  start_charge_entity: 'Start charge button',
-  start_ac_entity: 'Pre-conditioning button',
+export function buildSchema(hass?: HomeAssistant) {
+  const options = (prefix: string, values: readonly string[]) =>
+    values.map((value) => ({
+      value,
+      label: localize(hass, `${prefix}.${value}` as StringKey),
+    }))
+
+  return [
+    { name: 'name', selector: { text: {} } },
+    {
+      name: 'color',
+      selector: { select: { mode: 'dropdown', options: options('color', CAR_COLORS) } },
+    },
+    {
+      name: 'show_info',
+      selector: { select: { multiple: true, options: options('info', INFO_ITEMS) } },
+    },
+    {
+      name: 'show_buttons',
+      selector: { select: { multiple: true, options: options('button', BUTTON_ITEMS) } },
+    },
+    {
+      type: 'expandable',
+      name: 'entities',
+      title: localize(hass, 'editor.entities'),
+      flatten: true,
+      schema: ENTITIES,
+    },
+  ]
 }
 
 export class RenaultR5CardEditor extends LitElement {
@@ -33,8 +61,20 @@ export class RenaultR5CardEditor extends LitElement {
   declare hass?: HomeAssistant
   declare _config?: RenaultR5CardConfig
 
+  // Rebuilt only when the language changes: ha-form re-renders (and collapses
+  // the entities section) whenever it gets a new schema object.
+  private _schema?: { language: string; schema: ReturnType<typeof buildSchema> }
+
   setConfig(config: RenaultR5CardConfig): void {
     this._config = config
+  }
+
+  private _getSchema() {
+    const lang = language(this.hass)
+    if (this._schema?.language !== lang) {
+      this._schema = { language: lang, schema: buildSchema(this.hass) }
+    }
+    return this._schema.schema
   }
 
   private _valueChanged(ev: CustomEvent<{ value: RenaultR5CardConfig }>): void {
@@ -50,12 +90,20 @@ export class RenaultR5CardEditor extends LitElement {
 
   protected render() {
     if (!this.hass || !this._config) return nothing
+    // Unset options show their effective default in the form.
+    const data = {
+      color: DEFAULT_COLOR,
+      show_info: [...INFO_ITEMS],
+      show_buttons: [...BUTTON_ITEMS],
+      ...this._config,
+    }
     return html`
       <ha-form
         .hass=${this.hass}
-        .data=${this._config}
-        .schema=${SCHEMA}
-        .computeLabel=${(field: { name: string }) => LABELS[field.name] ?? field.name}
+        .data=${data}
+        .schema=${this._getSchema()}
+        .computeLabel=${(field: { name: string }) =>
+          localize(this.hass, `editor.${field.name}` as StringKey) ?? field.name}
         @value-changed=${this._valueChanged}
       ></ha-form>
     `
