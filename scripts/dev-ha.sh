@@ -76,7 +76,9 @@ cmd_stop() {
 cmd_restart() {
   build_card
   echo "→ Restarting container..."
-  docker compose -f "$COMPOSE_FILE" restart "$SERVICE"
+  # `up --force-recreate` rather than `restart`: `stop` removes the container,
+  # and `docker compose restart` does nothing when there is none.
+  HA_PORT="$HA_PORT" docker compose -f "$COMPOSE_FILE" up -d --force-recreate "$SERVICE"
   docker compose -f "$COMPOSE_FILE" logs -f "$SERVICE"
 }
 

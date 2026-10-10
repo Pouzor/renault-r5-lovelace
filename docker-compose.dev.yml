@@ -4,8 +4,9 @@ services:
     container_name: renault-r5-ha-dev
     restart: unless-stopped
     # 8124 by default so this can run next to another HA dev container on 8123.
+    # Bound to localhost: this throwaway instance is not meant for the LAN.
     ports:
-      - "${HA_PORT:-8124}:8123"
+      - "127.0.0.1:${HA_PORT:-8124}:8123"
     environment:
       TZ: Europe/Paris
     volumes:

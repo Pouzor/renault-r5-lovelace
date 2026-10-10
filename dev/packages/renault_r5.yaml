@@ -24,6 +24,13 @@ input_number:
     step: 1
     initial: 248
     unit_of_measurement: km
+  r5_mileage:
+    name: R5 mileage (fake)
+    min: 0
+    max: 300000
+    step: 1
+    initial: 12345
+    unit_of_measurement: km
 
 input_boolean:
   r5_charging:
@@ -45,6 +52,11 @@ template:
         device_class: distance
         unit_of_measurement: km
         state: "{{ states('input_number.r5_battery_autonomy') | int(0) }}"
+      - name: R5 Mileage
+        unique_id: dev_r5_mileage
+        device_class: distance
+        unit_of_measurement: km
+        state: "{{ states('input_number.r5_mileage') | int(0) }}"
   - binary_sensor:
       - name: R5 Charging
         unique_id: dev_r5_charging
@@ -54,6 +66,9 @@ template:
         unique_id: dev_r5_plugged_in
         device_class: plug
         state: "{{ is_state('input_boolean.r5_plugged_in', 'on') }}"
+      - name: R5 HVAC
+        unique_id: dev_r5_hvac
+        state: "{{ is_state('input_boolean.r5_hvac', 'on') }}"
   - button:
       - name: R5 Start charge
         unique_id: dev_r5_start_charge
@@ -69,3 +84,15 @@ template:
           - action: input_boolean.turn_on
             target:
               entity_id: input_boolean.r5_hvac
+      - name: R5 Flash lights
+        unique_id: dev_r5_flash_lights
+        press:
+          - action: persistent_notification.create
+            data:
+              message: R5 flashed its lights (fake)
+      - name: R5 Sound horn
+        unique_id: dev_r5_sound_horn
+        press:
+          - action: persistent_notification.create
+            data:
+              message: R5 sounded its horn (fake)
