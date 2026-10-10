@@ -4,7 +4,7 @@ import { CARD_NAME, CARD_TYPE, CARD_VERSION, EDITOR_TYPE } from './const'
 import { detectEntities } from './detect'
 import './editor'
 import { language, localize } from './localize'
-import { BUTTON_ITEMS, INFO_ITEMS } from './types'
+import { BUTTON_ITEMS, BUTTONS_POSITIONS, INFO_ITEMS } from './types'
 import type { ButtonItem, HomeAssistant, InfoItem, RenaultR5CardConfig } from './types'
 
 const UNAVAILABLE = new Set(['unavailable', 'unknown'])
@@ -60,6 +60,12 @@ export class RenaultR5Card extends LitElement {
     }
     assertItems('show_info', config.show_info, INFO_ITEMS)
     assertItems('show_buttons', config.show_buttons, BUTTON_ITEMS)
+    if (
+      config.buttons_position !== undefined &&
+      !BUTTONS_POSITIONS.includes(config.buttons_position)
+    ) {
+      throw new Error(`Unknown buttons_position "${config.buttons_position}"`)
+    }
     this._config = config
   }
 
@@ -186,30 +192,35 @@ export class RenaultR5Card extends LitElement {
     const showStatus = this._shows('status') && (config.charging_entity || config.plugged_entity)
 
     return html`
-      <ha-card>
+      <ha-card class=${config.buttons_position === 'right' ? 'buttons-right' : ''}>
         <div class="header">
           <span class="name">${name}</span>
           ${showStatus ? this._renderStatus(charging) : nothing}
         </div>
 
-        <img class="car" src=${CAR_IMAGES[config.color ?? DEFAULT_COLOR]} alt=${name} />
+        <div class="content">
+          <div class="main">
+            <img class="car" src=${CAR_IMAGES[config.color ?? DEFAULT_COLOR]} alt=${name} />
 
-        ${this._shows('battery') && config.battery_entity
-          ? html`<div class="battery-row">
-              <span class="battery">${hasBattery ? `${Math.round(battery)}%` : '—'}</span>
-              <div
-                class="bar ${level <= 20 ? 'low' : ''} ${charging ? 'charging' : ''}"
-                role="progressbar"
-                aria-label=${localize(this.hass, 'info.battery')}
-                aria-valuemin="0"
-                aria-valuemax="100"
-                aria-valuenow=${level}
-              >
-                <div class="fill" style="width: ${level}%"></div>
-              </div>
-            </div>`
-          : nothing}
-        ${this._renderTiles()} ${this._renderButtons()}
+            ${this._shows('battery') && config.battery_entity
+              ? html`<div class="battery-row">
+                  <span class="battery">${hasBattery ? `${Math.round(battery)}%` : '—'}</span>
+                  <div
+                    class="bar ${level <= 20 ? 'low' : ''} ${charging ? 'charging' : ''}"
+                    role="progressbar"
+                    aria-label=${localize(this.hass, 'info.battery')}
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-valuenow=${level}
+                  >
+                    <div class="fill" style="width: ${level}%"></div>
+                  </div>
+                </div>`
+              : nothing}
+            ${this._renderTiles()}
+          </div>
+          ${this._renderButtons()}
+        </div>
       </ha-card>
     `
   }
@@ -222,6 +233,27 @@ export class RenaultR5Card extends LitElement {
       gap: 12px;
       height: 100%;
       box-sizing: border-box;
+    }
+    .content,
+    .main {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .main {
+      flex: 1;
+      min-width: 0;
+    }
+    .buttons-right .content {
+      flex-direction: row;
+    }
+    .buttons-right .actions {
+      grid-auto-flow: row;
+      grid-auto-rows: minmax(0, 1fr);
+      min-width: 72px;
+    }
+    .buttons-right button {
+      justify-content: center;
     }
     .header {
       display: flex;

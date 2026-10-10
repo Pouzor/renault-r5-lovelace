@@ -3,7 +3,7 @@ import { CAR_COLORS, DEFAULT_COLOR } from './colors'
 import { EDITOR_TYPE } from './const'
 import { language, localize } from './localize'
 import type { StringKey } from './localize'
-import { BUTTON_ITEMS, INFO_ITEMS } from './types'
+import { BUTTON_ITEMS, BUTTONS_POSITIONS, INFO_ITEMS } from './types'
 import type { HomeAssistant, RenaultR5CardConfig } from './types'
 
 const entity = (domain: string) => ({ entity: { domain } })
@@ -42,6 +42,10 @@ export function buildSchema(hass?: HomeAssistant) {
     {
       name: 'show_buttons',
       selector: { select: { multiple: true, options: options('button', BUTTON_ITEMS) } },
+    },
+    {
+      name: 'buttons_position',
+      selector: { select: { mode: 'dropdown', options: options('position', BUTTONS_POSITIONS) } },
     },
     {
       type: 'expandable',
@@ -96,6 +100,7 @@ export class RenaultR5CardEditor extends LitElement {
       color: DEFAULT_COLOR,
       show_info: [...INFO_ITEMS],
       show_buttons: [...BUTTON_ITEMS],
+      buttons_position: BUTTONS_POSITIONS[0],
       ...this._config,
     }
     return html`

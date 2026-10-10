@@ -71,6 +71,7 @@ describe('renault-r5-card', () => {
     expect(invalid({ color: 'pink' })).toThrow(/color/)
     expect(invalid({ show_info: ['speed'] })).toThrow(/show_info/)
     expect(invalid({ show_buttons: 'horn' })).toThrow(/show_buttons/)
+    expect(invalid({ buttons_position: 'left' })).toThrow(/buttons_position/)
   })
 
   it('renders battery level, range and charging state', async () => {
@@ -165,6 +166,21 @@ describe('renault-r5-card', () => {
     expect(items(card, 'button')).toEqual(['horn', 'start_ac'])
     expect(card.shadowRoot!.querySelector('.battery-row')).toBeNull()
     expect(card.shadowRoot!.querySelector('.chip')).toBeNull()
+  })
+
+  it('puts the buttons beside the car when buttons_position is right', async () => {
+    const layout = async (extra: Partial<RenaultR5CardConfig>) => {
+      const root = (await mount(makeHass(STATES), { ...CONFIG, ...extra })).shadowRoot!
+      return {
+        right: root.querySelector('ha-card')!.classList.contains('buttons-right'),
+        // The buttons sit next to the car block, not inside it.
+        sibling: root.querySelector('.content > .main + .actions') !== null,
+      }
+    }
+
+    expect(await layout({})).toEqual({ right: false, sibling: true })
+    expect(await layout({ buttons_position: 'bottom' })).toEqual({ right: false, sibling: true })
+    expect(await layout({ buttons_position: 'right' })).toEqual({ right: true, sibling: true })
   })
 
   it('hides items whose entity is not configured', async () => {
@@ -280,6 +296,10 @@ describe('editor', () => {
       'start_ac',
       'flash_lights',
       'horn',
+    ])
+    expect(options('buttons_position')).toEqual([
+      { value: 'bottom', label: 'Sous la voiture' },
+      { value: 'right', label: 'À droite' },
     ])
   })
 })

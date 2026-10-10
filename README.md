@@ -60,6 +60,7 @@ name: Renault 5
 color: pop_yellow_black_roof
 show_info: [battery, range, status, hvac, mileage]
 show_buttons: [start_charge, start_ac, flash_lights, horn]
+buttons_position: bottom
 battery_entity: sensor.r5_battery
 range_entity: sensor.r5_battery_autonomy
 mileage_entity: sensor.r5_mileage
@@ -87,6 +88,7 @@ listed in `show_info` / `show_buttons` **and** its entity is set.
 | `color` | Body colour of the picture, see below. Defaults to `pop_yellow` |
 | `show_info` | Info items to display, any of `battery`, `range`, `status`, `hvac`, `mileage`. Defaults to all |
 | `show_buttons` | Buttons to display, in order, any of `start_charge`, `start_ac`, `flash_lights`, `horn`. Defaults to all |
+| `buttons_position` | Where the buttons go: `bottom` (default), in a row below the car, or `right`, in a column beside it for wide cards |
 | `battery_entity` | Battery level sensor (%) — `battery` |
 | `range_entity` | Remaining range sensor — `range` |
 | `mileage_entity` | Mileage sensor — `mileage` |
