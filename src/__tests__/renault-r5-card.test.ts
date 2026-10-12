@@ -72,6 +72,8 @@ describe('renault-r5-card', () => {
     expect(invalid({ show_info: ['speed'] })).toThrow(/show_info/)
     expect(invalid({ show_buttons: 'horn' })).toThrow(/show_buttons/)
     expect(invalid({ buttons_position: 'left' })).toThrow(/buttons_position/)
+    expect(invalid({ low_battery_threshold: 120 })).toThrow(/low_battery_threshold/)
+    expect(invalid({ low_battery_threshold: '20' })).toThrow(/low_battery_threshold/)
   })
 
   it('renders battery level, range and charging state', async () => {
@@ -206,6 +208,157 @@ describe('renault-r5-card', () => {
     expect(hass.callService).toHaveBeenCalledWith('button', 'press', { entity_id })
   })
 
+  it('shows the press as pending, then as done', async () => {
+    let resolve!: () => void
+    const hass = makeHass(STATES, {
+      callService: vi.fn(() => new Promise<void>((done) => (resolve = done))),
+    })
+    const card = await mount(hass)
+    const button = card.shadowRoot!.querySelector<HTMLButtonElement>('[data-button="start_ac"]')!
+
+    button.click()
+    await card.updateComplete
+    expect(button.classList.contains('pending')).toBe(true)
+    expect(button.disabled).toBe(true)
+    button.click()
+    expect(hass.callService).toHaveBeenCalledTimes(1)
+
+    resolve()
+    await vi.waitFor(() => expect(button.classList.contains('done')).toBe(true))
+    expect(button.disabled).toBe(false)
+  })
+
+  it('reports a failed press on the button and in a notification', async () => {
+    const hass = makeHass(STATES, {
+      callService: vi.fn().mockRejectedValue({ code: 'home_assistant_error', message: 'Timeout' }),
+    })
+    const card = await mount(hass)
+    const notified = vi.fn()
+    card.addEventListener('hass-notification', notified)
+    const button = card.shadowRoot!.querySelector<HTMLButtonElement>('[data-button="horn"]')!
+
+    button.click()
+    await vi.waitFor(() => expect(button.classList.contains('error')).toBe(true))
+    expect((notified.mock.calls[0][0] as CustomEvent).detail).toEqual({
+      message: 'The action failed: Timeout',
+    })
+  })
+
+  it('clears the outcome of a press after a while', async () => {
+    vi.useFakeTimers()
+    try {
+      const card = await mount(makeHass(STATES))
+      const button = card.shadowRoot!.querySelector<HTMLButtonElement>('[data-button="horn"]')!
+      button.click()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(button.className).toBe('done')
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(button.className).toBe('')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('opens the more-info dialog of the entity that is tapped', async () => {
+    const card = await mount(makeHass({ ...STATES, 'sensor.r5_charging_remaining_time': '85' }))
+    const opened: string[] = []
+    card.addEventListener('hass-more-info', (ev) =>
+      opened.push((ev as CustomEvent<{ entityId: string }>).detail.entityId)
+    )
+    const root = card.shadowRoot!
+    const tap = (selector: string) => root.querySelector<HTMLElement>(selector)!.click()
+
+    tap('.battery-row')
+    tap('[data-info="range"]')
+    tap('[data-info="hvac"]')
+    tap('[data-info="mileage"]')
+    tap('.chip.charging')
+    tap('.chip.remaining')
+    root
+      .querySelector('[data-info="range"]')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+
+    expect(opened).toEqual([
+      'sensor.r5_battery',
+      'sensor.r5_battery_autonomy',
+      'binary_sensor.r5_hvac',
+      'sensor.r5_mileage',
+      'binary_sensor.r5_charging',
+      'sensor.r5_charging_remaining_time',
+      'sensor.r5_battery_autonomy',
+    ])
+  })
+
+  it('opens the plug entity from the chip when the car is not charging', async () => {
+    const card = await mount(makeHass({ ...STATES, 'binary_sensor.r5_charging': 'off' }))
+    const opened = vi.fn()
+    card.addEventListener('hass-more-info', opened)
+    card.shadowRoot!.querySelector<HTMLElement>('.chip')!.click()
+    expect((opened.mock.calls[0][0] as CustomEvent).detail).toEqual({
+      entityId: 'binary_sensor.r5_plugged_in',
+    })
+  })
+
+  it('tells how old the data is', async () => {
+    const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString()
+    const updated = async (
+      hass: HomeAssistant,
+      extra: Partial<RenaultR5CardConfig> = {}
+    ): Promise<string | undefined> =>
+      (await mount(hass, { ...CONFIG, ...extra })).shadowRoot!.querySelector('.updated')
+        ?.textContent ?? undefined
+
+    // Without a dedicated sensor: the latest update among the available entities.
+    const hass = makeHass(STATES)
+    hass.states['sensor.r5_battery']!.last_updated = ago(125)
+    hass.states['sensor.r5_mileage']!.last_updated = ago(12)
+    expect(await updated(hass)).toBe('Updated 12 minutes ago')
+    expect(await updated(hass, { show_info: ['battery'] })).toBeUndefined()
+    expect(await updated(makeHass(STATES))).toBeUndefined()
+
+    // An entity that just went unavailable says nothing about the car.
+    const stale = makeHass({ ...STATES, 'sensor.r5_mileage': 'unavailable' })
+    stale.states['sensor.r5_battery']!.last_updated = ago(125)
+    stale.states['sensor.r5_mileage']!.last_updated = ago(0)
+    expect(await updated(stale)).toBe('Updated 2 hours ago')
+
+    const LAST = 'sensor.r5_battery_last_activity'
+    const sensor = (state: string, language = 'en') => {
+      const withSensor = makeHass({ ...STATES, [LAST]: state }, { locale: { language } })
+      withSensor.states['sensor.r5_battery']!.last_updated = ago(1)
+      return updated(withSensor, { last_update_entity: LAST })
+    }
+    expect(await sensor(ago(0))).toBe('Updated just now')
+    expect(await sensor(ago(3 * 1440))).toBe('Updated 3 days ago')
+    expect(await sensor(ago(5), 'fr')).toBe('Mis à jour il y a 5 minutes')
+    expect(await sensor('unavailable')).toBeUndefined()
+  })
+
+  it('opens the last update sensor when there is one', async () => {
+    const LAST = 'sensor.r5_battery_last_activity'
+    const card = await mount(makeHass({ ...STATES, [LAST]: new Date().toISOString() }), {
+      ...CONFIG,
+      last_update_entity: LAST,
+    })
+    const opened = vi.fn()
+    card.addEventListener('hass-more-info', opened)
+    card.shadowRoot!.querySelector<HTMLElement>('.updated')!.click()
+    expect((opened.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: LAST })
+  })
+
+  it('marks the battery as low at or below the threshold', async () => {
+    const low = async (battery: string, extra: Partial<RenaultR5CardConfig> = {}) => {
+      const hass = makeHass({ ...STATES, 'sensor.r5_battery': battery })
+      const root = (await mount(hass, { ...CONFIG, ...extra })).shadowRoot!
+      return root.querySelector('.bar')!.classList.contains('low')
+    }
+
+    expect(await low('20')).toBe(true)
+    expect(await low('21')).toBe(false)
+    expect(await low('30', { low_battery_threshold: 30 })).toBe(true)
+    expect(await low('15', { low_battery_threshold: 10 })).toBe(false)
+  })
+
   it('follows the Home Assistant language', async () => {
     const card = await mount(makeHass(STATES, { locale: { language: 'fr' } }))
     const root = card.shadowRoot!
@@ -226,6 +379,7 @@ describe('getStubConfig', () => {
       ['binary_sensor.hm494xm_en_charge', null, 'battery_charging'],
       ['binary_sensor.hm494xm_prise', null, 'plug'],
       ['binary_sensor.hm494xm_cvc', 'hvac_status', undefined],
+      ['sensor.hm494xm_derniere_activite', 'battery_last_activity', 'timestamp'],
       ['button.hm494xm_commencer_la_charge', 'start_charge', undefined],
       ['button.hm494xm_demarrer_la_climatisation', 'start_air_conditioner', undefined],
       ['button.hm494xm_faire_un_appel_de_phares', 'flash_lights', undefined],
@@ -260,6 +414,7 @@ describe('getStubConfig', () => {
       plugged_entity: 'binary_sensor.hm494xm_prise',
       charging_remaining_time_entity: 'sensor.hm494xm_temps_de_charge_restant',
       hvac_entity: 'binary_sensor.hm494xm_cvc',
+      last_update_entity: 'sensor.hm494xm_derniere_activite',
       start_charge_entity: 'button.hm494xm_commencer_la_charge',
       start_ac_entity: 'button.hm494xm_demarrer_la_climatisation',
       flash_lights_entity: 'button.hm494xm_faire_un_appel_de_phares',
@@ -290,6 +445,7 @@ describe('editor', () => {
       'status',
       'hvac',
       'mileage',
+      'updated',
     ])
     expect(options('show_buttons').map((o) => o.value)).toEqual([
       'start_charge',
@@ -301,5 +457,8 @@ describe('editor', () => {
       { value: 'bottom', label: 'Sous la voiture' },
       { value: 'right', label: 'À droite' },
     ])
+    expect(schema.find((field) => field.name === 'low_battery_threshold')).toMatchObject({
+      selector: { number: { min: 0, max: 100 } },
+    })
   })
 })

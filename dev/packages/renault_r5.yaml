@@ -69,6 +69,11 @@ template:
         device_class: duration
         unit_of_measurement: min
         state: "{{ states('input_number.r5_charging_remaining_time') | int(0) }}"
+      - name: R5 Battery last activity
+        unique_id: dev_r5_battery_last_activity
+        device_class: timestamp
+        availability: "{{ states.input_number.r5_battery is not none }}"
+        state: "{{ states.input_number.r5_battery.last_updated }}"
   - binary_sensor:
       - name: R5 Charging
         unique_id: dev_r5_charging
