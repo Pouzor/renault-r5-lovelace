@@ -3,7 +3,12 @@ import { CAR_COLORS, DEFAULT_COLOR } from './colors'
 import { EDITOR_TYPE } from './const'
 import { language, localize } from './localize'
 import type { StringKey } from './localize'
-import { BUTTON_ITEMS, BUTTONS_POSITIONS, INFO_ITEMS } from './types'
+import {
+  BUTTON_ITEMS,
+  BUTTONS_POSITIONS,
+  DEFAULT_LOW_BATTERY_THRESHOLD,
+  INFO_ITEMS,
+} from './types'
 import type { HomeAssistant, RenaultR5CardConfig } from './types'
 
 const entity = (domain: string) => ({ entity: { domain } })
@@ -16,6 +21,7 @@ const ENTITIES = [
   { name: 'plugged_entity', selector: entity('binary_sensor') },
   { name: 'charging_remaining_time_entity', selector: entity('sensor') },
   { name: 'hvac_entity', selector: entity('binary_sensor') },
+  { name: 'last_update_entity', selector: { entity: { domain: 'sensor', device_class: 'timestamp' } } },
   { name: 'start_charge_entity', selector: entity('button') },
   { name: 'start_ac_entity', selector: entity('button') },
   { name: 'flash_lights_entity', selector: entity('button') },
@@ -46,6 +52,10 @@ export function buildSchema(hass?: HomeAssistant) {
     {
       name: 'buttons_position',
       selector: { select: { mode: 'dropdown', options: options('position', BUTTONS_POSITIONS) } },
+    },
+    {
+      name: 'low_battery_threshold',
+      selector: { number: { min: 0, max: 100, step: 1, mode: 'box', unit_of_measurement: '%' } },
     },
     {
       type: 'expandable',
@@ -101,6 +111,7 @@ export class RenaultR5CardEditor extends LitElement {
       show_info: [...INFO_ITEMS],
       show_buttons: [...BUTTON_ITEMS],
       buttons_position: BUTTONS_POSITIONS[0],
+      low_battery_threshold: DEFAULT_LOW_BATTERY_THRESHOLD,
       ...this._config,
     }
     return html`

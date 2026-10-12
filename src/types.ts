@@ -4,6 +4,7 @@ export interface HassEntity {
   entity_id: string
   state: string
   attributes: Record<string, unknown>
+  last_updated?: string
 }
 
 // Entry of the entity registry as exposed to the frontend.
@@ -27,9 +28,10 @@ export interface HomeAssistant {
   ): Promise<unknown>
 }
 
-export const INFO_ITEMS = ['battery', 'range', 'status', 'hvac', 'mileage'] as const
+export const INFO_ITEMS = ['battery', 'range', 'status', 'hvac', 'mileage', 'updated'] as const
 export const BUTTON_ITEMS = ['start_charge', 'start_ac', 'flash_lights', 'horn'] as const
 export const BUTTONS_POSITIONS = ['bottom', 'right'] as const
+export const DEFAULT_LOW_BATTERY_THRESHOLD = 20
 
 export type InfoItem = (typeof INFO_ITEMS)[number]
 export type ButtonItem = (typeof BUTTON_ITEMS)[number]
@@ -44,6 +46,8 @@ export interface RenaultR5CardConfig {
   show_buttons?: ButtonItem[]
   // `right` stacks the buttons in a column beside the car, for wide cards.
   buttons_position?: ButtonsPosition
+  // Battery level (%) at or below which the bar turns to the error colour.
+  low_battery_threshold?: number
   battery_entity?: string
   range_entity?: string
   charging_entity?: string
@@ -51,6 +55,9 @@ export interface RenaultR5CardConfig {
   charging_remaining_time_entity?: string
   hvac_entity?: string
   mileage_entity?: string
+  // Timestamp of the last data sent by the car; without it the card falls back
+  // to the latest update among the entities above.
+  last_update_entity?: string
   start_charge_entity?: string
   start_ac_entity?: string
   flash_lights_entity?: string

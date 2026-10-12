@@ -9,6 +9,7 @@ const BY_TRANSLATION_KEY: Record<string, EntityOption> = {
   mileage: 'mileage_entity',
   charging_remaining_time: 'charging_remaining_time_entity',
   hvac_status: 'hvac_entity',
+  battery_last_activity: 'last_update_entity',
   start_charge: 'start_charge_entity',
   start_air_conditioner: 'start_ac_entity',
   flash_lights: 'flash_lights_entity',
