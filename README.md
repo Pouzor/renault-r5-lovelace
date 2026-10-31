@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/icon.png" alt="Renault R5 Card" width="128"></p>
+
 # Renault R5 Card
 
 [![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
