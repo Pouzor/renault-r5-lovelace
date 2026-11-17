@@ -22,21 +22,51 @@ const BY_DEVICE_CLASS: Record<string, EntityOption> = {
   'binary_sensor:plug': 'plugged_entity',
 }
 
-// Entities of the first vehicle created by the core `renault` integration.
-export function detectEntities(hass?: HomeAssistant): Partial<Record<EntityOption, string>> {
-  const renault = Object.values(hass?.entities ?? {}).filter(
-    (entry) => entry?.platform === 'renault'
-  )
-  const deviceId = renault[0]?.device_id
-  const detected: Partial<Record<EntityOption, string>> = {}
+// Sensors of the EV Charge Cost integration, also named in the user's language.
+const CHARGE_BY_TRANSLATION_KEY: Record<string, EntityOption> = {
+  session_cost: 'charge_session_cost_entity',
+  last_session_cost: 'charge_last_cost_entity',
+  last_session_energy: 'charge_last_energy_entity',
+  last_session_distance: 'charge_last_distance_entity',
+  last_session_cost_per_100km: 'charge_last_cost_per_100km_entity',
+  last_session_consumption: 'charge_last_consumption_entity',
+  total_cost: 'charge_total_cost_entity',
+}
 
-  for (const entry of renault) {
-    if (!entry || entry.device_id !== deviceId) continue
+type Detected = Partial<Record<EntityOption, string>>
+
+// Registry entries of the first device created by `platform`.
+function firstDevice(hass: HomeAssistant | undefined, platform: string) {
+  const entries = Object.values(hass?.entities ?? {}).filter(
+    (entry) => entry?.platform === platform
+  )
+  const deviceId = entries[0]?.device_id
+  return entries.filter((entry) => !!entry && entry.device_id === deviceId) as NonNullable<
+    (typeof entries)[number]
+  >[]
+}
+
+// Entities of the first vehicle created by the core `renault` integration.
+export function detectEntities(hass?: HomeAssistant): Detected {
+  const detected: Detected = {}
+  for (const entry of firstDevice(hass, 'renault')) {
     const domain = entry.entity_id.split('.')[0]
     const deviceClass = hass?.states[entry.entity_id]?.attributes.device_class
     const option =
       (entry.translation_key ? BY_TRANSLATION_KEY[entry.translation_key] : undefined) ??
       BY_DEVICE_CLASS[`${domain}:${String(deviceClass)}`]
+    if (option) detected[option] ??= entry.entity_id
+  }
+  return detected
+}
+
+// Sensors of the first charge point tracked by EV Charge Cost.
+export function detectChargeEntities(hass?: HomeAssistant): Detected {
+  const detected: Detected = {}
+  for (const entry of firstDevice(hass, 'ev_charge_cost')) {
+    const option = entry.translation_key
+      ? CHARGE_BY_TRANSLATION_KEY[entry.translation_key]
+      : undefined
     if (option) detected[option] ??= entry.entity_id
   }
   return detected

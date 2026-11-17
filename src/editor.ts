@@ -6,6 +6,8 @@ import type { StringKey } from './localize'
 import {
   BUTTON_ITEMS,
   BUTTONS_POSITIONS,
+  CHARGE_ITEMS,
+  CHARGE_LAYOUTS,
   DEFAULT_LOW_BATTERY_THRESHOLD,
   INFO_ITEMS,
 } from './types'
@@ -27,6 +29,16 @@ const ENTITIES = [
   { name: 'flash_lights_entity', selector: entity('button') },
   { name: 'horn_entity', selector: entity('button') },
 ]
+
+const CHARGE_ENTITIES = [
+  'charge_session_cost_entity',
+  'charge_last_cost_entity',
+  'charge_last_energy_entity',
+  'charge_last_distance_entity',
+  'charge_last_cost_per_100km_entity',
+  'charge_last_consumption_entity',
+  'charge_total_cost_entity',
+].map((name) => ({ name, selector: entity('sensor') }))
 
 export function buildSchema(hass?: HomeAssistant) {
   const options = (prefix: string, values: readonly string[]) =>
@@ -50,6 +62,14 @@ export function buildSchema(hass?: HomeAssistant) {
       selector: { select: { multiple: true, options: options('button', BUTTON_ITEMS) } },
     },
     {
+      name: 'show_charge',
+      selector: { select: { multiple: true, options: options('charge', CHARGE_ITEMS) } },
+    },
+    {
+      name: 'charge_layout',
+      selector: { select: { mode: 'dropdown', options: options('layout', CHARGE_LAYOUTS) } },
+    },
+    {
       name: 'buttons_position',
       selector: { select: { mode: 'dropdown', options: options('position', BUTTONS_POSITIONS) } },
     },
@@ -63,6 +83,13 @@ export function buildSchema(hass?: HomeAssistant) {
       title: localize(hass, 'editor.entities'),
       flatten: true,
       schema: ENTITIES,
+    },
+    {
+      type: 'expandable',
+      name: 'charge_entities',
+      title: localize(hass, 'editor.charge_entities'),
+      flatten: true,
+      schema: CHARGE_ENTITIES,
     },
   ]
 }
@@ -110,6 +137,8 @@ export class RenaultR5CardEditor extends LitElement {
       color: DEFAULT_COLOR,
       show_info: [...INFO_ITEMS],
       show_buttons: [...BUTTON_ITEMS],
+      show_charge: [...CHARGE_ITEMS],
+      charge_layout: CHARGE_LAYOUTS[0],
       buttons_position: BUTTONS_POSITIONS[0],
       low_battery_threshold: DEFAULT_LOW_BATTERY_THRESHOLD,
       ...this._config,

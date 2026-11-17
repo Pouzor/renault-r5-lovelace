@@ -94,7 +94,9 @@ needs no entity of its own).
 | `color` | Body colour of the picture, see below. Defaults to `pop_yellow` |
 | `show_info` | Info items to display, any of `battery`, `range`, `status`, `hvac`, `mileage`, `updated`. Defaults to all |
 | `show_buttons` | Buttons to display, in order, any of `start_charge`, `start_ac`, `flash_lights`, `horn`. Defaults to all |
-| `buttons_position` | Where the buttons go: `bottom` (default), in a row below the car, or `right`, in a column beside it for wide cards |
+| `show_charge` | Charging cost figures to display, in order, any of `last_cost`, `last_energy`, `last_distance`, `cost_per_100km`, `consumption`, `total_cost`. Defaults to all — see [Charging costs](#charging-costs) |
+| `charge_layout` | How the charging costs are laid out: `compact` (default), one panel with the last charge, the total and the per-100 km figures, or `tiles`, one tile per figure in the `show_charge` order |
+| `buttons_position` | Where the buttons go: `bottom` (default), in a row below the card, `right`, in a column beside the car for wide cards, or `compact`, small round icon buttons tucked right under the car |
 | `low_battery_threshold` | Battery level (%) at or below which the bar turns red. Defaults to `20` |
 | `battery_entity` | Battery level sensor (%) — `battery` |
 | `range_entity` | Remaining range sensor — `range` |
@@ -119,6 +121,36 @@ needs no entity of its own).
 | `midnight_blue` / `midnight_blue_black_roof` | Midnight blue |
 | `slate_grey` / `slate_grey_black_roof` | Slate grey |
 | `starry_black` | Starry black |
+
+### Charging costs
+
+With the [EV Charge Cost](https://github.com/Pouzor/ev-charge-cost) integration,
+the card adds a compact "Charging costs" panel below the car (or one tile per
+figure with `charge_layout: tiles`), and the cost of the
+charge in progress next to "Charging". The sensors are picked up automatically
+when the card is added; with an odometer configured in EV Charge Cost you also
+get the distance, consumption and cost per 100 km.
+
+```yaml
+show_charge: [last_cost, last_distance, cost_per_100km]
+charge_session_cost_entity: sensor.recharge_ve_session_cost
+charge_last_cost_entity: sensor.recharge_ve_last_session_cost
+charge_last_energy_entity: sensor.recharge_ve_last_session_energy
+charge_last_distance_entity: sensor.recharge_ve_last_session_distance
+charge_last_cost_per_100km_entity: sensor.recharge_ve_last_session_cost_per_100km
+charge_last_consumption_entity: sensor.recharge_ve_last_session_consumption
+charge_total_cost_entity: sensor.recharge_ve_total_cost
+```
+
+| Option | EV Charge Cost sensor — item |
+| --- | --- |
+| `charge_session_cost_entity` | Session cost, shown as a chip while charging |
+| `charge_last_cost_entity` | Last session cost — `last_cost` |
+| `charge_last_energy_entity` | Last session energy — `last_energy` |
+| `charge_last_distance_entity` | Last session distance (km driven since the previous charge) — `last_distance` |
+| `charge_last_cost_per_100km_entity` | Last session cost per 100 km — `cost_per_100km` |
+| `charge_last_consumption_entity` | Last session consumption (kWh/100 km) — `consumption` |
+| `charge_total_cost_entity` | Total cost — `total_cost` |
 
 The card is displayed in English or French, following the Home Assistant
 language.

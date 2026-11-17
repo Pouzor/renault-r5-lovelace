@@ -18,3 +18,5 @@ services:
       - ./dist:/config/www/renault-r5-card:ro
       # Fake Renault entities + Lovelace resource registration.
       - ./dev/packages:/config/packages:ro
+      # Ready-made YAML dashboard ("R5 dev" in the sidebar).
+      - ./dev/dashboards:/config/dev-dashboards:ro
