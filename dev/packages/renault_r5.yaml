@@ -8,6 +8,13 @@ lovelace:
   resources:
     - url: /local/renault-r5-card/renault-r5-card.js
       type: module
+  dashboards:
+    r5-dev:
+      mode: yaml
+      filename: dev-dashboards/r5.yaml
+      title: R5 dev
+      icon: mdi:car-electric
+      show_in_sidebar: true
 
 input_number:
   r5_battery:

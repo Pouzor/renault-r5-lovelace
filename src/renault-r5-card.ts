@@ -1,16 +1,24 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { CAR_IMAGES, DEFAULT_COLOR } from './colors'
 import { CARD_NAME, CARD_TYPE, CARD_VERSION, EDITOR_TYPE } from './const'
-import { detectEntities } from './detect'
+import { detectChargeEntities, detectEntities } from './detect'
 import './editor'
 import { language, localize } from './localize'
 import {
   BUTTON_ITEMS,
   BUTTONS_POSITIONS,
+  CHARGE_ITEMS,
+  CHARGE_LAYOUTS,
   DEFAULT_LOW_BATTERY_THRESHOLD,
   INFO_ITEMS,
 } from './types'
-import type { ButtonItem, HomeAssistant, InfoItem, RenaultR5CardConfig } from './types'
+import type {
+  ButtonItem,
+  ChargeItem,
+  HomeAssistant,
+  InfoItem,
+  RenaultR5CardConfig,
+} from './types'
 
 const UNAVAILABLE = new Set(['unavailable', 'unknown'])
 
@@ -22,6 +30,23 @@ const BUTTONS: Record<ButtonItem, { option: keyof RenaultR5CardConfig; icon: str
   start_ac: { option: 'start_ac_entity', icon: 'mdi:fan' },
   flash_lights: { option: 'flash_lights_entity', icon: 'mdi:car-light-high' },
   horn: { option: 'horn_entity', icon: 'mdi:bullhorn' },
+}
+
+// EV Charge Cost figures.
+const CHARGE: Record<
+  ChargeItem,
+  { option: keyof RenaultR5CardConfig; icon: string; digits: number }
+> = {
+  last_cost: { option: 'charge_last_cost_entity', icon: 'mdi:cash', digits: 2 },
+  last_energy: { option: 'charge_last_energy_entity', icon: 'mdi:lightning-bolt', digits: 1 },
+  last_distance: { option: 'charge_last_distance_entity', icon: 'mdi:map-marker-path', digits: 0 },
+  cost_per_100km: {
+    option: 'charge_last_cost_per_100km_entity',
+    icon: 'mdi:cash-fast',
+    digits: 2,
+  },
+  consumption: { option: 'charge_last_consumption_entity', icon: 'mdi:gauge', digits: 1 },
+  total_cost: { option: 'charge_total_cost_entity', icon: 'mdi:cash-multiple', digits: 2 },
 }
 
 // Entities whose updates tell when data last came in from the car.
@@ -100,6 +125,7 @@ export class RenaultR5Card extends LitElement {
             plugged_entity: 'binary_sensor.r5_plugged_in',
             charging_remaining_time_entity: 'sensor.r5_charging_remaining_time',
           }),
+      ...detectChargeEntities(hass),
     }
   }
 
@@ -112,6 +138,10 @@ export class RenaultR5Card extends LitElement {
     }
     assertItems('show_info', config.show_info, INFO_ITEMS)
     assertItems('show_buttons', config.show_buttons, BUTTON_ITEMS)
+    assertItems('show_charge', config.show_charge, CHARGE_ITEMS)
+    if (config.charge_layout !== undefined && !CHARGE_LAYOUTS.includes(config.charge_layout)) {
+      throw new Error(`Unknown charge_layout "${config.charge_layout}"`)
+    }
     if (
       config.buttons_position !== undefined &&
       !BUTTONS_POSITIONS.includes(config.buttons_position)
@@ -150,6 +180,35 @@ export class RenaultR5Card extends LitElement {
     const value = Number(state)
     const text = Number.isFinite(value) ? value.toLocaleString(language(this.hass)) : state
     return `${text} ${typeof unit === 'string' ? unit : fallbackUnit}`
+  }
+
+  // "12,40 €", "3,44 €/100 km", "18,4 kWh". EV Charge Cost reports costs in the
+  // ISO code of the Home Assistant currency ("EUR", "EUR/100 km"), shown here
+  // as its symbol.
+  private _amount(entityId: string, digits: number): string {
+    const state = this._state(entityId)
+    if (state === undefined) return '—'
+    const value = Number(state)
+    if (!Number.isFinite(value)) return state
+    const rawUnit = this.hass?.states[entityId]?.attributes.unit_of_measurement
+    const unit = typeof rawUnit === 'string' ? rawUnit : ''
+    const lang = language(this.hass)
+    const [currency, ...per] = unit.split('/')
+    if (/^[A-Z]{3}$/.test(currency)) {
+      try {
+        const text = new Intl.NumberFormat(lang, {
+          style: 'currency',
+          currency,
+          minimumFractionDigits: digits,
+          maximumFractionDigits: digits,
+        }).format(value)
+        return per.length ? `${text}/${per.join('/')}` : text
+      } catch {
+        // Not a currency Intl knows: fall through to the plain unit.
+      }
+    }
+    const text = value.toLocaleString(lang, { maximumFractionDigits: digits })
+    return unit ? `${text} ${unit}` : text
   }
 
   // Remaining charge time as "1 h 25 min"; undefined when unknown or over.
@@ -265,17 +324,27 @@ export class RenaultR5Card extends LitElement {
     )!
     const remainingId = config.charging_remaining_time_entity
     const remaining = charging ? this._remaining(remainingId) : undefined
+    const costId = config.charge_session_cost_entity
+    // The session cost is 0 until the first kWh is billed: nothing to show yet.
+    const cost = charging && costId && Number(this._state(costId)) > 0
     return html`<div class="chips">
+      ${cost
+        ? this._renderInfoChip(
+            'session-cost',
+            'mdi:cash',
+            this._amount(costId, 2),
+            localize(this.hass, 'status.session_cost'),
+            costId
+          )
+        : nothing}
       ${remaining && remainingId
-        ? html`<span
-            class="chip remaining clickable"
-            role="button"
-            tabindex="0"
-            title=${localize(this.hass, 'status.remaining')}
-            @click=${() => this._moreInfo(remainingId)}
-            @keydown=${(ev: KeyboardEvent) => this._moreInfoKey(ev, remainingId)}
-            ><ha-icon icon="mdi:timer-outline"></ha-icon>${remaining}</span
-          >`
+        ? this._renderInfoChip(
+            'remaining',
+            'mdi:timer-outline',
+            remaining,
+            localize(this.hass, 'status.remaining'),
+            remainingId
+          )
         : nothing}
       <span
         class="chip ${key} clickable"
@@ -288,18 +357,123 @@ export class RenaultR5Card extends LitElement {
     </div>`
   }
 
+  private _renderInfoChip(kind: string, icon: string, text: string, title: string, entityId: string) {
+    return html`<span
+      class="chip icon ${kind} clickable"
+      role="button"
+      tabindex="0"
+      title=${title}
+      @click=${() => this._moreInfo(entityId)}
+      @keydown=${(ev: KeyboardEvent) => this._moreInfoKey(ev, entityId)}
+      ><ha-icon .icon=${icon}></ha-icon>${text}</span
+    >`
+  }
+
   private _renderTile(item: InfoItem, icon: string, value: string, entityId: string) {
+    return this._tile(localize(this.hass, `info.${item}`), icon, value, entityId, item)
+  }
+
+  // Tiles carry `data-info` or `data-charge` so each kind can be told apart.
+  private _tile(
+    label: string,
+    icon: string,
+    value: string,
+    entityId: string,
+    info?: InfoItem,
+    charge?: ChargeItem
+  ) {
     return html`<div
       class="tile clickable"
-      data-info=${item}
+      data-info=${info ?? nothing}
+      data-charge=${charge ?? nothing}
       role="button"
       tabindex="0"
       @click=${() => this._moreInfo(entityId)}
       @keydown=${(ev: KeyboardEvent) => this._moreInfoKey(ev, entityId)}
     >
       <ha-icon .icon=${icon}></ha-icon>
-      <span class="label">${localize(this.hass, `info.${item}`)}</span>
+      <span class="label">${label}</span>
       <span class="value">${value}</span>
+    </div>`
+  }
+
+  // Charge figures to show, in order, with their entity.
+  private _chargeItems(): Array<[ChargeItem, string]> {
+    const config = this._config!
+    return (config.show_charge ?? CHARGE_ITEMS).flatMap((item) => {
+      const entityId = config[CHARGE[item].option] as string | undefined
+      return entityId ? [[item, entityId] as [ChargeItem, string]] : []
+    })
+  }
+
+  private _renderCharge() {
+    const items = this._chargeItems()
+    if (!items.length) return nothing
+    return this._config!.charge_layout === 'tiles'
+      ? this._renderChargeTiles(items)
+      : this._renderChargeCompact(items)
+  }
+
+  // One panel: the last charge (cost first, then energy and distance) with the
+  // total on the right, and the per-100 km ratios on a thin line below.
+  private _renderChargeCompact(items: Array<[ChargeItem, string]>) {
+    const entities = Object.fromEntries(items) as Partial<Record<ChargeItem, string>>
+    const pick = (group: readonly ChargeItem[]) => group.filter((item) => entities[item])
+    const stat = (item: ChargeItem, cls = '', icon = false) => {
+      const entityId = entities[item]!
+      return html`<span
+        class="stat clickable ${cls}"
+        data-charge=${item}
+        role="button"
+        tabindex="0"
+        title=${localize(this.hass, `charge.${item}`)}
+        @click=${() => this._moreInfo(entityId)}
+        @keydown=${(ev: KeyboardEvent) => this._moreInfoKey(ev, entityId)}
+        >${icon ? html`<ha-icon .icon=${CHARGE[item].icon}></ha-icon>` : nothing}<span
+          class="value"
+          >${this._amount(entityId, CHARGE[item].digits)}</span
+        ></span
+      >`
+    }
+    const last = pick(['last_cost', 'last_energy', 'last_distance'])
+    const ratios = pick(['cost_per_100km', 'consumption'])
+    const total = entities.total_cost
+    return html`<div class="charge compact">
+      ${last.length || total
+        ? html`<div class="charge-main">
+            ${last.length
+              ? html`<div class="charge-group">
+                  <span class="caption">${localize(this.hass, 'charge.last_cost')}</span>
+                  <div class="charge-last">
+                    ${last.map((item, i) => stat(item, i === 0 ? 'hero' : 'secondary'))}
+                  </div>
+                </div>`
+              : nothing}
+            ${total
+              ? html`<div class="charge-group total">
+                  <span class="caption">${localize(this.hass, 'charge.total_cost')}</span>
+                  ${stat('total_cost')}
+                </div>`
+              : nothing}
+          </div>`
+        : nothing}
+      ${ratios.length
+        ? html`<div class="charge-ratios">${ratios.map((item) => stat(item, '', true))}</div>`
+        : nothing}
+    </div>`
+  }
+
+  private _renderChargeTiles(items: Array<[ChargeItem, string]>) {
+    const tiles = items.map(([item, entityId]) => {
+      const { icon, digits } = CHARGE[item]
+      const label = localize(this.hass, `charge.${item}`)
+      return this._tile(label, icon, this._amount(entityId, digits), entityId, undefined, item)
+    })
+    // Rows of at most three, without leaving a lone tile on the last row.
+    const columns = tiles.length === 4 ? 2 : Math.min(3, tiles.length)
+    return html`<div class="charge">
+      <span class="section-title">${localize(this.hass, 'charge.title')}</span>
+      <div class="tiles grid" style="--columns: ${columns}">${tiles}</div>
     </div>`
   }
 
@@ -347,6 +521,7 @@ export class RenaultR5Card extends LitElement {
         class=${feedback ?? ''}
         data-button=${item}
         title=${label}
+        aria-label=${label}
         aria-busy=${feedback === 'pending'}
         ?disabled=${disabled || feedback === 'pending'}
         @click=${() => this._press(item, entityId)}
@@ -371,8 +546,12 @@ export class RenaultR5Card extends LitElement {
     const batteryId = config.battery_entity
     const showStatus = this._shows('status') && (config.charging_entity || config.plugged_entity)
 
+    // `compact` tucks small round icon buttons into the car's shadow.
+    const position = config.buttons_position ?? 'bottom'
+    const compact = position === 'compact'
+
     return html`
-      <ha-card class=${config.buttons_position === 'right' ? 'buttons-right' : ''}>
+      <ha-card class=${position === 'bottom' ? '' : `buttons-${position}`}>
         <div class="header">
           <div class="title">
             <span class="name">${name}</span>
@@ -384,6 +563,7 @@ export class RenaultR5Card extends LitElement {
         <div class="content">
           <div class="main">
             <img class="car" src=${CAR_IMAGES[config.color ?? DEFAULT_COLOR]} alt=${name} />
+            ${compact ? this._renderButtons() : nothing}
 
             ${this._shows('battery') && batteryId
               ? html`<div
@@ -405,9 +585,9 @@ export class RenaultR5Card extends LitElement {
                   </div>
                 </div>`
               : nothing}
-            ${this._renderTiles()}
+            ${this._renderTiles()} ${this._renderCharge()}
           </div>
-          ${this._renderButtons()}
+          ${compact ? nothing : this._renderButtons()}
         </div>
       </ha-card>
     `
@@ -439,6 +619,28 @@ export class RenaultR5Card extends LitElement {
       grid-auto-flow: row;
       grid-auto-rows: minmax(0, 1fr);
       min-width: 72px;
+    }
+    .buttons-compact .actions {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      /* The bottom of the picture is the car's shadow: sit the buttons on it. */
+      margin-top: -32px;
+      position: relative;
+    }
+    .buttons-compact button {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--card-background-color, var(--ha-card-background));
+    }
+    .buttons-compact button ha-icon {
+      --mdc-icon-size: 20px;
+    }
+    .buttons-compact button span {
+      display: none;
     }
     .buttons-right button {
       justify-content: center;
@@ -483,12 +685,12 @@ export class RenaultR5Card extends LitElement {
       justify-content: flex-end;
       gap: 6px;
     }
-    .chip.remaining {
+    .chip.icon {
       display: inline-flex;
       align-items: center;
       gap: 4px;
     }
-    .chip.remaining ha-icon {
+    .chip.icon ha-icon {
       --mdc-icon-size: 14px;
     }
     .chip.charging {
@@ -540,6 +742,84 @@ export class RenaultR5Card extends LitElement {
       grid-auto-flow: column;
       grid-auto-columns: minmax(0, 1fr);
       gap: 8px;
+    }
+    .tiles.grid {
+      grid-auto-flow: row;
+      grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+    }
+    .charge {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .charge.compact {
+      gap: 0;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--secondary-background-color);
+    }
+    .charge-main {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .charge-group {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .charge-group.total {
+      align-items: flex-end;
+      text-align: right;
+    }
+    .caption {
+      font-size: 0.75rem;
+      color: var(--secondary-text-color);
+    }
+    .charge-last {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      column-gap: 8px;
+    }
+    .stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+    .stat.hero {
+      font-size: 1.4rem;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+    .stat.secondary {
+      font-size: 0.85rem;
+      color: var(--secondary-text-color);
+    }
+    .stat.secondary + .stat.secondary::before {
+      content: '·';
+      margin-right: 4px;
+    }
+    .charge-ratios {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 16px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--divider-color);
+      font-size: 0.85rem;
+    }
+    .charge-ratios ha-icon {
+      --mdc-icon-size: 16px;
+      color: var(--secondary-text-color);
+    }
+    .section-title {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--secondary-text-color);
     }
     .tile {
       display: flex;

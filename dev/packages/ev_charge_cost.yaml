@@ -1,0 +1,81 @@
+# Dev-only package: fakes the sensors the EV Charge Cost integration
+# (github.com/Pouzor/ev-charge-cost) creates for a charge point named
+# "Recharge VE", with its odometer option on. Same ids, units and device
+# classes as the real ones; drive the values from the input_number helpers.
+
+input_number:
+  ev_last_session_cost:
+    name: EV last session cost (fake)
+    min: 0
+    max: 50
+    step: 0.01
+    initial: 6.3
+    unit_of_measurement: EUR
+  ev_last_session_energy:
+    name: EV last session energy (fake)
+    min: 0
+    max: 60
+    step: 0.1
+    initial: 28.4
+    unit_of_measurement: kWh
+  ev_last_session_distance:
+    name: EV last session distance (fake)
+    min: 0
+    max: 1000
+    step: 1
+    initial: 183
+    unit_of_measurement: km
+  ev_total_cost:
+    name: EV total cost (fake)
+    min: 0
+    max: 5000
+    step: 0.5
+    initial: 412.5
+    unit_of_measurement: EUR
+
+template:
+  - sensor:
+      # Grows with the fake remaining charge time while the R5 charges.
+      - name: Recharge VE Session cost
+        unique_id: dev_ev_session_cost
+        device_class: monetary
+        unit_of_measurement: EUR
+        state: >
+          {{ (2.6 - states('input_number.r5_charging_remaining_time') | float(0) / 100) | round(2)
+             if is_state('input_boolean.r5_charging', 'on') else 0 }}
+      - name: Recharge VE Last session cost
+        unique_id: dev_ev_last_session_cost
+        device_class: monetary
+        unit_of_measurement: EUR
+        state: "{{ states('input_number.ev_last_session_cost') }}"
+      - name: Recharge VE Last session energy
+        unique_id: dev_ev_last_session_energy
+        device_class: energy
+        unit_of_measurement: kWh
+        state: "{{ states('input_number.ev_last_session_energy') }}"
+      - name: Recharge VE Last session distance
+        unique_id: dev_ev_last_session_distance
+        device_class: distance
+        unit_of_measurement: km
+        state: "{{ states('input_number.ev_last_session_distance') }}"
+      - name: Recharge VE Last session consumption
+        unique_id: dev_ev_last_session_consumption
+        device_class: energy_distance
+        unit_of_measurement: kWh/100km
+        state: >
+          {% set km = states('input_number.ev_last_session_distance') | float(0) %}
+          {{ (states('input_number.ev_last_session_energy') | float(0) / km * 100) | round(2)
+             if km > 0 else none }}
+      - name: Recharge VE Last session cost per 100km
+        unique_id: dev_ev_last_session_cost_per_100km
+        unit_of_measurement: EUR/100 km
+        state: >
+          {% set km = states('input_number.ev_last_session_distance') | float(0) %}
+          {{ (states('input_number.ev_last_session_cost') | float(0) / km * 100) | round(2)
+             if km > 0 else none }}
+      - name: Recharge VE Total cost
+        unique_id: dev_ev_total_cost
+        device_class: monetary
+        state_class: total
+        unit_of_measurement: EUR
+        state: "{{ states('input_number.ev_total_cost') }}"

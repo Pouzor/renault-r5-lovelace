@@ -185,6 +185,16 @@ describe('renault-r5-card', () => {
     expect(await layout({ buttons_position: 'right' })).toEqual({ right: true, sibling: true })
   })
 
+  it('tucks small icon buttons under the car when buttons_position is compact', async () => {
+    const root = (await mount(makeHass(STATES), { ...CONFIG, buttons_position: 'compact' }))
+      .shadowRoot!
+    expect(root.querySelector('ha-card')!.classList.contains('buttons-compact')).toBe(true)
+    // Right below the picture, inside the car block, and nowhere else.
+    expect(root.querySelector('.main > .car + .actions')).not.toBeNull()
+    expect(root.querySelectorAll('.actions')).toHaveLength(1)
+    expect(root.querySelector('[data-button="horn"]')?.getAttribute('aria-label')).toBe('Horn')
+  })
+
   it('hides items whose entity is not configured', async () => {
     const card = await mount(makeHass(STATES), {
       type: TYPE,
@@ -368,6 +378,157 @@ describe('renault-r5-card', () => {
   })
 })
 
+const CHARGE_CONFIG: RenaultR5CardConfig = {
+  ...CONFIG,
+  charge_session_cost_entity: 'sensor.recharge_ve_session_cost',
+  charge_last_cost_entity: 'sensor.recharge_ve_last_session_cost',
+  charge_last_energy_entity: 'sensor.recharge_ve_last_session_energy',
+  charge_last_distance_entity: 'sensor.recharge_ve_last_session_distance',
+  charge_last_cost_per_100km_entity: 'sensor.recharge_ve_last_session_cost_per_100km',
+  charge_last_consumption_entity: 'sensor.recharge_ve_last_session_consumption',
+  charge_total_cost_entity: 'sensor.recharge_ve_total_cost',
+}
+
+// EV Charge Cost sensors: [id, state, unit].
+const CHARGE_SENSORS = [
+  ['sensor.recharge_ve_session_cost', '2.157', 'EUR'],
+  ['sensor.recharge_ve_last_session_cost', '6.3', 'EUR'],
+  ['sensor.recharge_ve_last_session_energy', '28.437', 'kWh'],
+  ['sensor.recharge_ve_last_session_distance', '183.4', 'km'],
+  ['sensor.recharge_ve_last_session_cost_per_100km', '3.44', 'EUR/100 km'],
+  ['sensor.recharge_ve_last_session_consumption', '15.51', 'kWh/100km'],
+  ['sensor.recharge_ve_total_cost', '412.5', 'EUR'],
+] as const
+
+function chargeHass(overrides: Record<string, string> = {}, language = 'en'): HomeAssistant {
+  const hass = makeHass(STATES, { locale: { language } })
+  for (const [entity_id, state, unit] of CHARGE_SENSORS) {
+    hass.states[entity_id] = {
+      entity_id,
+      state: overrides[entity_id] ?? state,
+      attributes: { unit_of_measurement: unit },
+    }
+  }
+  return hass
+}
+
+const chargeValues = (card: RenaultR5Card) =>
+  Object.fromEntries(
+    [...card.shadowRoot!.querySelectorAll<HTMLElement>('[data-charge]')].map((tile) => [
+      tile.dataset.charge,
+      tile.querySelector('.value')!.textContent!.replace(/\s/g, ' '),
+    ])
+  )
+
+describe('charging costs (EV Charge Cost)', () => {
+  it('shows the last charge figures, with the cost per 100 km', async () => {
+    const card = await mount(chargeHass(), CHARGE_CONFIG)
+    expect(chargeValues(card)).toEqual({
+      last_cost: '€6.30',
+      last_energy: '28.4 kWh',
+      last_distance: '183 km',
+      cost_per_100km: '€3.44/100 km',
+      consumption: '15.5 kWh/100km',
+      total_cost: '€412.50',
+    })
+  })
+
+  it('formats the amounts in the Home Assistant language', async () => {
+    const card = await mount(chargeHass({}, 'fr'), CHARGE_CONFIG)
+    const values = chargeValues(card)
+    expect(values.last_cost).toBe('6,30 €')
+    expect(values.cost_per_100km).toBe('3,44 €/100 km')
+    expect(card.shadowRoot!.querySelector('.charge .caption')?.textContent).toBe(
+      'Dernière charge'
+    )
+  })
+
+  it('packs the figures in one compact panel by default', async () => {
+    const root = (await mount(chargeHass(), CHARGE_CONFIG)).shadowRoot!
+    const charge = (selector: string) =>
+      [...root.querySelectorAll<HTMLElement>(`${selector} [data-charge]`)].map(
+        (el) => el.dataset.charge
+      )
+    expect(root.querySelector('.charge.compact')).not.toBeNull()
+    expect(root.querySelector('.charge .tile')).toBeNull()
+    expect(charge('.charge-last')).toEqual(['last_cost', 'last_energy', 'last_distance'])
+    expect(root.querySelector('.charge-last .hero')?.getAttribute('data-charge')).toBe('last_cost')
+    expect(charge('.charge-group.total')).toEqual(['total_cost'])
+    expect(charge('.charge-ratios')).toEqual(['cost_per_100km', 'consumption'])
+  })
+
+  it('keeps one tile per figure, in order, with charge_layout tiles', async () => {
+    const root = (
+      await mount(chargeHass({}, 'fr'), {
+        ...CHARGE_CONFIG,
+        charge_layout: 'tiles',
+        show_charge: ['total_cost', 'last_cost'],
+      })
+    ).shadowRoot!
+    expect(root.querySelector('.charge.compact')).toBeNull()
+    expect(
+      [...root.querySelectorAll<HTMLElement>('.charge .tile')].map((el) => el.dataset.charge)
+    ).toEqual(['total_cost', 'last_cost'])
+    expect(root.querySelector('.charge .section-title')?.textContent).toBe('Coût des recharges')
+  })
+
+  it('rejects an unknown charge layout', () => {
+    const card = document.createElement('renault-r5-card') as RenaultR5Card
+    expect(() => card.setConfig({ ...CHARGE_CONFIG, charge_layout: 'list' } as never)).toThrow(
+      /charge_layout/
+    )
+  })
+
+  it('is hidden without any EV Charge Cost entity', async () => {
+    const card = await mount(chargeHass())
+    expect(card.shadowRoot!.querySelector('.charge')).toBeNull()
+  })
+
+  it('only shows the selected figures', async () => {
+    const card = await mount(chargeHass(), {
+      ...CHARGE_CONFIG,
+      show_charge: ['cost_per_100km', 'last_cost'],
+    })
+    expect(items(card, 'charge')).toEqual(['last_cost', 'cost_per_100km'])
+  })
+
+  it('rejects an unknown charge item', () => {
+    const card = document.createElement('renault-r5-card') as RenaultR5Card
+    expect(() => card.setConfig({ ...CHARGE_CONFIG, show_charge: ['fuel'] } as never)).toThrow(
+      /show_charge/
+    )
+  })
+
+  it('shows a placeholder while a sensor has no value yet', async () => {
+    const card = await mount(
+      chargeHass({ 'sensor.recharge_ve_last_session_cost_per_100km': 'unknown' }),
+      CHARGE_CONFIG
+    )
+    expect(chargeValues(card).cost_per_100km).toBe('—')
+  })
+
+  it('shows the cost of the charge in progress only while charging', async () => {
+    const root = async (charging: string, cost = '2.157') => {
+      const hass = chargeHass({ 'sensor.recharge_ve_session_cost': cost })
+      hass.states['binary_sensor.r5_charging']!.state = charging
+      return (await mount(hass, CHARGE_CONFIG)).shadowRoot!
+    }
+    const chip = (await root('on')).querySelector('.chip.session-cost')
+    expect(chip?.textContent?.trim()).toBe('€2.16')
+    expect((await root('off')).querySelector('.chip.session-cost')).toBeNull()
+    // Nothing billed yet at the start of a session.
+    expect((await root('on', '0')).querySelector('.chip.session-cost')).toBeNull()
+  })
+
+  it('opens the more-info dialog of a tapped figure', async () => {
+    const card = await mount(chargeHass(), CHARGE_CONFIG)
+    const opened = vi.fn()
+    card.addEventListener('hass-more-info', (ev) => opened((ev as CustomEvent).detail.entityId))
+    card.shadowRoot!.querySelector<HTMLElement>('[data-charge="cost_per_100km"]')!.click()
+    expect(opened).toHaveBeenCalledWith('sensor.recharge_ve_last_session_cost_per_100km')
+  })
+})
+
 describe('getStubConfig', () => {
   it('detects the entities of the renault integration whatever their ids', () => {
     const registry = [
@@ -422,6 +583,38 @@ describe('getStubConfig', () => {
     })
   })
 
+  it('detects the sensors of EV Charge Cost whatever their ids', () => {
+    const registry = [
+      ['sensor.recharge_ve_cout_de_la_session', 'session_cost'],
+      ['sensor.recharge_ve_cout_de_la_derniere_session', 'last_session_cost'],
+      ['sensor.recharge_ve_energie_de_la_derniere_session', 'last_session_energy'],
+      ['sensor.recharge_ve_distance', 'last_session_distance'],
+      ['sensor.recharge_ve_cout_aux_100_km', 'last_session_cost_per_100km'],
+      ['sensor.recharge_ve_consommation', 'last_session_consumption'],
+      ['sensor.recharge_ve_cout_total', 'total_cost'],
+      ['sensor.recharge_ve_prix_actuel', 'current_price'],
+    ] as const
+    const hass = makeHass({}, {
+      entities: Object.fromEntries(
+        registry.map(([entity_id, translation_key]) => [
+          entity_id,
+          { entity_id, translation_key, platform: 'ev_charge_cost', device_id: 'wallbox' },
+        ])
+      ),
+    })
+
+    expect(RenaultR5Card.getStubConfig(hass)).toMatchObject({
+      battery_entity: 'sensor.r5_battery',
+      charge_session_cost_entity: 'sensor.recharge_ve_cout_de_la_session',
+      charge_last_cost_entity: 'sensor.recharge_ve_cout_de_la_derniere_session',
+      charge_last_energy_entity: 'sensor.recharge_ve_energie_de_la_derniere_session',
+      charge_last_distance_entity: 'sensor.recharge_ve_distance',
+      charge_last_cost_per_100km_entity: 'sensor.recharge_ve_cout_aux_100_km',
+      charge_last_consumption_entity: 'sensor.recharge_ve_consommation',
+      charge_total_cost_entity: 'sensor.recharge_ve_cout_total',
+    })
+  })
+
   it('falls back to the default ids without a renault vehicle', () => {
     expect(RenaultR5Card.getStubConfig(makeHass({})).battery_entity).toBe('sensor.r5_battery')
   })
@@ -453,9 +646,23 @@ describe('editor', () => {
       'flash_lights',
       'horn',
     ])
+    expect(options('show_charge').map((o) => o.value)).toEqual([
+      'last_cost',
+      'last_energy',
+      'last_distance',
+      'cost_per_100km',
+      'consumption',
+      'total_cost',
+    ])
+    expect(options('show_charge')[3].label).toBe('Coût aux 100 km')
+    expect(options('charge_layout')).toEqual([
+      { value: 'compact', label: 'Compact' },
+      { value: 'tiles', label: 'Tuiles' },
+    ])
     expect(options('buttons_position')).toEqual([
       { value: 'bottom', label: 'Sous la voiture' },
       { value: 'right', label: 'À droite' },
+      { value: 'compact', label: 'Petites icônes sous la voiture' },
     ])
     expect(schema.find((field) => field.name === 'low_battery_threshold')).toMatchObject({
       selector: { number: { min: 0, max: 100 } },

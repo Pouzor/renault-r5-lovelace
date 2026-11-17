@@ -1,0 +1,60 @@
+# Dev-only dashboard (sidebar "R5 dev"): the card with and without the
+# EV Charge Cost figures, next to the helpers that drive the fake entities.
+title: R5 dev
+views:
+  - title: R5
+    type: sections
+    sections:
+      - type: grid
+        cards:
+          - type: custom:renault-r5-card
+            name: Renault 5
+            color: pop_yellow
+            battery_entity: sensor.r5_battery
+            range_entity: sensor.r5_battery_autonomy
+            mileage_entity: sensor.r5_mileage
+            charging_entity: binary_sensor.r5_charging
+            plugged_entity: binary_sensor.r5_plugged_in
+            charging_remaining_time_entity: sensor.r5_charging_remaining_time
+            hvac_entity: binary_sensor.r5_hvac
+            last_update_entity: sensor.r5_battery_last_activity
+            start_charge_entity: button.r5_start_charge
+            start_ac_entity: button.r5_start_air_conditioner
+            flash_lights_entity: button.r5_flash_lights
+            horn_entity: button.r5_sound_horn
+            charge_session_cost_entity: sensor.recharge_ve_session_cost
+            charge_last_cost_entity: sensor.recharge_ve_last_session_cost
+            charge_last_energy_entity: sensor.recharge_ve_last_session_energy
+            charge_last_distance_entity: sensor.recharge_ve_last_session_distance
+            charge_last_cost_per_100km_entity: sensor.recharge_ve_last_session_cost_per_100km
+            charge_last_consumption_entity: sensor.recharge_ve_last_session_consumption
+            charge_total_cost_entity: sensor.recharge_ve_total_cost
+      - type: grid
+        cards:
+          - type: custom:renault-r5-card
+            name: Coût et €/100 km seulement
+            color: midnight_blue
+            show_charge: [last_cost, last_distance, cost_per_100km]
+            battery_entity: sensor.r5_battery
+            range_entity: sensor.r5_battery_autonomy
+            charging_entity: binary_sensor.r5_charging
+            plugged_entity: binary_sensor.r5_plugged_in
+            charge_last_cost_entity: sensor.recharge_ve_last_session_cost
+            charge_last_distance_entity: sensor.recharge_ve_last_session_distance
+            charge_last_cost_per_100km_entity: sensor.recharge_ve_last_session_cost_per_100km
+      - type: grid
+        cards:
+          - type: entities
+            title: Fake R5
+            entities:
+              - input_boolean.r5_charging
+              - input_boolean.r5_plugged_in
+              - input_number.r5_battery
+              - input_number.r5_charging_remaining_time
+          - type: entities
+            title: Fake EV Charge Cost
+            entities:
+              - input_number.ev_last_session_cost
+              - input_number.ev_last_session_energy
+              - input_number.ev_last_session_distance
+              - input_number.ev_total_cost
