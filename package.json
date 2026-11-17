@@ -1,7 +1,7 @@
 {
   "name": "renault-r5-card",
   "private": true,
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Home Assistant Lovelace card for the electric Renault 5",
   "license": "MIT",
   "type": "module",
